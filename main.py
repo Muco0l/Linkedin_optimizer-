@@ -124,7 +124,7 @@ def main_dashboard():
         def init_llm():
             try:
                 return ChatGoogleGenerativeAI(
-                    model="gemini-1.5-flash", 
+                    model="gemini-2,0-flash", 
                     temperature=0.7, 
                     google_api_key=st.secrets["GOOGLE_API_KEY"]
                 )
