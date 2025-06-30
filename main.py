@@ -1,13 +1,14 @@
+#importing necessary libraries
 import streamlit as st
 import os
 import pandas as pd
 import scrape_agent, supabase_db
-import ast
-# Import project modules
-import auth
 import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+# Import project modules
+import auth
 
 # --- Page Config ---
 st.set_page_config(page_title="AI Recruitment Assistant", layout="wide",initial_sidebar_state="auto")
@@ -20,7 +21,7 @@ def login_page():
     st.markdown("Log in or create an account to manage your recruitment pipeline.")
 
     col1, col2 = st.columns(2)
-
+#-------login and signup------
     with col1:
         with st.form("login_form"):
             st.subheader("Login")
@@ -57,7 +58,7 @@ def login_page():
                         st.error(f"Signup failed: {error_message}")
 
 
-
+#--------main dashboard----
 def main_dashboard():
     st.warning("You are successfully logged in! Please add Job Title In Sidebar For job specific enhancements" )
     user_id = st.session_state['user'].id
@@ -93,7 +94,6 @@ def main_dashboard():
                 st.warning("Please provide a job title.")
 
     # Display Stored Profiles from DB
-          
         user = st.session_state["user"]
         profiles = supabase_db.get_all_profiles(user.id)
         if profiles:
@@ -119,7 +119,7 @@ def main_dashboard():
         message.write("Hi,Got your amazing Profile")
         decoded_text = json.loads(data)
         message.write(f"```\n{decoded_text}\n```")
-        message.write("If it is outdated, please update it in the sidebar.")
+        message.write("If it is outdated,Please update it in the sidebar.And HIT REFRESH!!")
         st.divider()
         def init_llm():
             try:
@@ -331,7 +331,7 @@ Communication Style:
         st.markdown(
             """
             <div style='text-align: center; color: #666; font-size: 0.8em;'>
-            💼 LinkedIn Profile Optimizer | Built with Streamlit & Google Gemini | Now with Conversation Memory
+            💼 LinkedIn Profile Optimizer | Built with Streamlit & Google Gemini via Langchain | with Conversation Memory
             </div>
             """, 
             unsafe_allow_html=True

@@ -1,5 +1,5 @@
+#----IMPORTS----
 from supabase import create_client, Client
-import os
 import json
 import streamlit as st
 SUPABASE_URL = st.secrets["SUPABASE_URL"]

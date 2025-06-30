@@ -1,5 +1,7 @@
+#---impoerting necessary libraries
 from apify_client import ApifyClient
 import streamlit as st
+#---setting up Apify API key
 APIFY_API_KEY_ = st.secrets["APIFY_API_KEY"]
 def get_profile(linkedin_url):
     try:
