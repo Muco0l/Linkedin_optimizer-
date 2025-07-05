@@ -146,7 +146,7 @@ def main_dashboard():
             st.sidebar.markdown(f"**Timestamp:** {profile1['timestamp']}")
             data = profile1['profile']
             decoded_text = json.loads(data)
-            st.sidebar.write("### Stored Profiles (Guest Mode)")
+            st.sidebar.write("### Profile (Guest Mode)")
             st.sidebar.markdown(f"```\n{decoded_text}\n```")
             st.sidebar.markdown("---")
             profiles = [profile1]  # Create list for consistency with regular flow
