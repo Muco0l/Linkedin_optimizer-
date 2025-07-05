@@ -11,7 +11,26 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import auth
 
 # --- Page Config ---
-st.set_page_config(page_title="AI Recruitment Assistant", layout="wide",initial_sidebar_state="auto")
+st.set_page_config(page_title="AI Recruitment Assistant", layout="wide",initial_sidebar_state="expanded")
+
+# --- Guest Access Check Function ---
+def check_guest_access():
+    """Check if guest access is enabled via URL parameter"""
+    try:
+        # Check URL parameters for guest access
+        query_params = st.query_params
+        if 'guest' in query_params or 'demo' in query_params or 'reviewer' in query_params:
+            if 'guest_mode' not in st.session_state:
+                st.session_state['guest_mode'] = True
+                st.session_state['user'] = type('GuestUser', (), {
+                    'id': 'guest_user_demo',
+                    'email': 'guest@demo.com'
+                })()
+            return True
+    except Exception as e:
+        # If there's any error with query params, continue normally
+        pass
+    return False
 
 # --- App Pages ---
 
@@ -19,6 +38,11 @@ def login_page():
     """Displays the login and signup page."""
     st.title("🤖 Welcome to the Linkedin Profile Optimizer")
     st.markdown("Log in or create an account to manage your recruitment pipeline.")
+
+    # Add guest access info for reviewers
+    st.info("🔍 **For Reviewers:** Add `?guest=true` to the URL to access without creating an account")
+    st.markdown("For testing this app go to: `https://linkedinoptimizer.streamlit.app/?guest=true`")
+    st.markdown("---")
 
     col1, col2 = st.columns(2)
 #-------login and signup------
@@ -60,31 +84,49 @@ def login_page():
 
 #--------main dashboard----
 def main_dashboard():
-    st.warning("You are successfully logged in! Please add Job Title In Sidebar For job specific enhancements" )
+    # Show guest mode indicator if applicable
+    if st.session_state.get('guest_mode', False):
+        st.success("**Guest Mode Active** - You're accessing the app for evaluation purposes")
+        st.info(f"💡 In guest mode, you can test all features. Data won't be permanently saved to database.For True Cross-session persistence create an account")
+    else:
+        st.warning("You are successfully logged in! Please add Job Title In Sidebar For job specific enhancements" )
+    
     user_id = st.session_state['user'].id
     user_email = st.session_state['user'].email
     st.title("🤖 Welcome to the Linkedin Profile Optimizer")
 
     # LinkedIn Input Section
-    st.sidebar.header("LinkedIn Profile Management")
+    st.sidebar.title("LinkedIn Profile Management")
     with st.sidebar.expander("Add LinkedIn", expanded=True):
         Linkedin_Url = st.text_input("LinkedIn URL")
+        
 
         if st.button("Fetch new Profile Data or Update",use_container_width = True):
                 if Linkedin_Url:
                     with st.spinner("Fetching profile data..."):
                         Profile = scrape_agent.get_profile(Linkedin_Url)
                         if "Error:" not in Profile:
-                            jd_id = supabase_db.add_profile(Linkedin_Url, Profile, user_id)
-                            if jd_id:
-                                st.success(f"LinkedIn '{Linkedin_Url}' added successfully!")
+                            # For guest mode, store in session state instead of database
+                            if st.session_state.get('guest_mode', False):
+                                st.session_state['guest_profile'] = {
+                                    'linkedin_url': Linkedin_Url,
+                                    'profile': json.dumps(Profile),
+                                    'timestamp': pd.Timestamp.now().isoformat()
+                                }
+                                st.success(f"LinkedIn '{Linkedin_Url}' loaded successfully! (Guest Mode - Not saved to database)")
                                 st.rerun()
                             else:
-                                st.error("Failed to save profile to the database in sidebar.")
+                                jd_id = supabase_db.add_profile(Linkedin_Url, Profile, user_id)
+                                if jd_id:
+                                    st.success(f"LinkedIn '{Linkedin_Url}' added successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to save profile to the database in sidebar.")
                         else:
                             st.error(f"Failed to fetch profile: {Profile}")
                 else:
                     st.warning("Please provide a LinkedIn URL.")
+        
         Job_Title = st.text_input("Job Title", placeholder="e.g. Software Engineer")
         if st.button("Save Job Title", use_container_width=True):
             if Job_Title:
@@ -93,34 +135,56 @@ def main_dashboard():
             else:
                 st.warning("Please provide a job title.")
 
-    # Display Stored Profiles from DB
-        user = st.session_state["user"]
+    # Display Stored Profiles from DB or Guest Session
+    user = st.session_state["user"]
+    
+    # Handle guest mode vs regular user profiles
+    if st.session_state.get('guest_mode', False):
+        # Guest mode - check session state for profile
+        if 'guest_profile' in st.session_state:
+            profile1 = st.session_state['guest_profile']
+            st.sidebar.markdown(f"**Timestamp:** {profile1['timestamp']}")
+            data = profile1['profile']
+            decoded_text = json.loads(data)
+            st.sidebar.write("### Stored Profiles (Guest Mode)")
+            st.sidebar.markdown(f"```\n{decoded_text}\n```")
+            st.sidebar.markdown("---")
+            profiles = [profile1]  # Create list for consistency with regular flow
+        else:
+            profiles = []
+            st.sidebar.markdown("_No profiles stored yet._")
+    else:
+        # Regular user - get from database
         profiles = supabase_db.get_all_profiles(user.id)
         if profiles:
-                    for profile in profiles:
-                        st.sidebar.markdown(f"**Timestamp:** {profile['timestamp']}")
-                        data = profile['profile']
-                        decoded_text = json.loads(data)
-                        st.write("### Stored Profiles")
-                        st.markdown(f"```\n{decoded_text}\n```")
-                        st.sidebar.markdown("---")
-                    
-
-
-                    st.sidebar.markdown("---")
-                    
-
-                
+            for profile in profiles:
+                st.sidebar.markdown(f"**Timestamp:** {profile['timestamp']}")
+                data = profile['profile']
+                decoded_text = json.loads(data)
+                st.write("### Stored Profiles")
+                st.markdown(f"```\n{decoded_text}\n```")
+                st.sidebar.markdown("---")
+            st.sidebar.markdown("---")
         else:
-                        st.sidebar.markdown("_No profiles stored yet._")
-    profiles = supabase_db.get_all_profiles(user.id)
+            st.sidebar.markdown("_No profiles stored yet._")
+
+    # Continue with chat interface if profiles exist
     if profiles:
         message = st.chat_message("assistant")
         message.write("Hi,Got your amazing Profile")
-        decoded_text = json.loads(data)
+        
+        # Handle both guest and regular user profile data
+        if st.session_state.get('guest_mode', False):
+            data = st.session_state['guest_profile']['profile']
+            decoded_text = json.loads(data)
+        else:
+            data = profiles[0]['profile']  # Use first profile for regular users
+            decoded_text = json.loads(data)
+            
         message.write(f"```\n{decoded_text}\n```")
-        message.write("If it is outdated,Please update it in the sidebar.And HIT REFRESH!!")
+        message.write("If it is outdated,Please update it in the sidebar!")
         st.divider()
+        
         def init_llm():
             try:
                 return ChatGoogleGenerativeAI(
@@ -328,10 +392,11 @@ Communication Style:
                 st.rerun()
 
         st.markdown("---")
+        mode_text = "Guest Mode" if st.session_state.get('guest_mode', False) else "Authenticated Mode"
         st.markdown(
-            """
+            f"""
             <div style='text-align: center; color: #666; font-size: 0.8em;'>
-            💼 LinkedIn Profile Optimizer | Built with Streamlit & Google Gemini via Langchain | with Conversation Memory
+            💼 LinkedIn Profile Optimizer | Built with Streamlit & Google Gemini via Langchain | with Conversation Memory | {mode_text}
             </div>
             """, 
             unsafe_allow_html=True
@@ -340,8 +405,20 @@ Communication Style:
     else:
             st.warning("Please add a LinkedIn profile in the sidebar to get started.")
 
-# Check if user is logged in    
-if 'user' not in st.session_state:
-    login_page()
+# --- Main Execution Logic ---
+def main():
+    """Main function to handle routing between guest access and authentication"""
+    # Check for guest access first
+    if check_guest_access():
+        main_dashboard()
+    elif 'user' not in st.session_state:
+        login_page()
+    else:
+        main_dashboard()
+
+# Run the app
+if __name__ == "__main__":
+    main()
 else:
-    main_dashboard()
+    # For Streamlit Cloud deployment
+    main()
